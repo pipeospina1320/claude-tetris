@@ -4,7 +4,23 @@ const COLS = 10;
 const ROWS = 20;
 const BLOCK = 30;
 
-const COLORS = [
+const THEME_KEY = 'tetris_theme';
+
+function drawRoundedRectPath(context, x, y, width, height, radius) {
+  context.beginPath();
+  context.moveTo(x + radius, y);
+  context.lineTo(x + width - radius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + radius);
+  context.lineTo(x + width, y + height - radius);
+  context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  context.lineTo(x + radius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - radius);
+  context.lineTo(x, y + radius);
+  context.quadraticCurveTo(x, y, x + radius, y);
+  context.closePath();
+}
+
+const RETRO_COLORS = [
   null,
   '#4dd0e1', // I - cyan
   '#ffd54f', // O - yellow
@@ -14,6 +30,119 @@ const COLORS = [
   '#7986cb', // J - indigo
   '#ffb74d', // L - orange
 ];
+
+const THEMES = {
+  retro: {
+    colors: RETRO_COLORS,
+    gridColor: '#22222e',
+    drawBlock(context, x, y, colorIndex, size, alpha) {
+      if (!colorIndex) return;
+      const color = THEMES.retro.colors[colorIndex];
+      context.globalAlpha = alpha ?? 1;
+      context.fillStyle = color;
+      context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+      // highlight
+      context.fillStyle = 'rgba(255,255,255,0.12)';
+      context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+      context.globalAlpha = 1;
+    },
+  },
+  neon: {
+    colors: [
+      null,
+      '#00e5ff', // I - cyan
+      '#fff176', // O - yellow
+      '#e040fb', // T - purple
+      '#69f0ae', // S - green
+      '#ff5252', // Z - red
+      '#536dfe', // J - indigo
+      '#ffab40', // L - orange
+    ],
+    gridColor: '#1a1a2e',
+    drawBlock(context, x, y, colorIndex, size, alpha) {
+      if (!colorIndex) return;
+      const color = THEMES.neon.colors[colorIndex];
+      context.globalAlpha = alpha ?? 1;
+      context.shadowColor = color;
+      context.shadowBlur = 18;
+      context.fillStyle = color;
+      context.fillRect(x * size + 2, y * size + 2, size - 4, size - 4);
+      context.shadowBlur = 0;
+      context.globalAlpha = 1;
+    },
+  },
+  pastel: {
+    colors: [
+      null,
+      '#a7d8de', // I - cyan
+      '#fff2b2', // O - yellow
+      '#d9b8e6', // T - purple
+      '#b8e0c2', // S - green
+      '#f4b6b0', // Z - red
+      '#b8c2ec', // J - indigo
+      '#f7cfa0', // L - orange
+    ],
+    gridColor: '#3a3a44',
+    drawBlock(context, x, y, colorIndex, size, alpha) {
+      if (!colorIndex) return;
+      const color = THEMES.pastel.colors[colorIndex];
+      context.globalAlpha = alpha ?? 1;
+      context.fillStyle = color;
+      drawRoundedRectPath(context, x * size + 2, y * size + 2, size - 4, size - 4, Math.max(2, size * 0.2));
+      context.fill();
+      context.globalAlpha = 1;
+    },
+  },
+  pixel: {
+    colors: RETRO_COLORS,
+    gridColor: '#22222e',
+    drawBlock(context, x, y, colorIndex, size, alpha) {
+      if (!colorIndex) return;
+      const color = THEMES.pixel.colors[colorIndex];
+      context.globalAlpha = alpha ?? 1;
+      context.fillStyle = color;
+      const bx = x * size + 1;
+      const by = y * size + 1;
+      const bs = size - 2;
+      context.fillRect(bx, by, bs, bs);
+      // simple 2x2 checkerboard texture
+      const half = bs / 2;
+      context.fillStyle = 'rgba(0,0,0,0.15)';
+      context.fillRect(bx, by, half, half);
+      context.fillRect(bx + half, by + half, half, half);
+      context.fillStyle = 'rgba(255,255,255,0.12)';
+      context.fillRect(bx + half, by, half, half);
+      context.fillRect(bx, by + half, half, half);
+      context.globalAlpha = 1;
+    },
+  },
+};
+
+let currentTheme = 'retro';
+
+function getTheme(name) {
+  return Object.prototype.hasOwnProperty.call(THEMES, name) ? THEMES[name] : null;
+}
+
+function loadTheme() {
+  try {
+    const saved = localStorage.getItem(THEME_KEY);
+    return getTheme(saved) ? saved : 'retro';
+  } catch (e) {
+    return 'retro';
+  }
+}
+
+function applyTheme(theme) {
+  currentTheme = getTheme(theme) ? theme : 'retro';
+  document.body.classList.remove(...Object.keys(THEMES).map(name => `theme-${name}`));
+  document.body.classList.add(`theme-${currentTheme}`);
+  try {
+    localStorage.setItem(THEME_KEY, currentTheme);
+  } catch (e) {
+    // localStorage unavailable (e.g. private mode) - ignore, theme just won't persist
+  }
+}
 
 const PIECES = [
   null,
@@ -39,6 +168,16 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const themeSelect = document.getElementById('theme-select');
+
+const pauseOverlay = document.getElementById('pause-overlay');
+const pauseMainView = document.getElementById('pause-main-view');
+const pauseControlsView = document.getElementById('pause-controls-view');
+const startingLevelSelect = document.getElementById('starting-level-select');
+const resumeBtn = document.getElementById('resume-btn');
+const pauseRestartBtn = document.getElementById('pause-restart-btn');
+const viewControlsBtn = document.getElementById('view-controls-btn');
+const backToPauseBtn = document.getElementById('back-to-pause-btn');
 
 const startOverlay = document.getElementById('start-overlay');
 const playBtn = document.getElementById('play-btn');
@@ -59,6 +198,8 @@ const STATS_KEY = 'tetris_stats';
 const MAX_SCORES = 5;
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, combo, bestCombo, started;
+let startingLevel = 1; // pending selection for the *next* game (from the pause-menu select)
+let activeStartingLevel = 1; // starting level actually used by the game in progress, fixed at init()
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -124,7 +265,7 @@ function clearLines() {
   if (cleared) {
     lines += cleared;
     score += (LINE_SCORES[cleared] || 0) * level;
-    level = Math.floor(lines / 10) + 1;
+    level = activeStartingLevel + Math.floor(lines / 10);
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
     combo++;
     if (combo > bestCombo) bestCombo = combo;
@@ -180,18 +321,13 @@ function updateHUD() {
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
-  const color = COLORS[colorIndex];
-  context.globalAlpha = alpha ?? 1;
-  context.fillStyle = color;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
-  // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
-  context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
-  context.globalAlpha = 1;
+  const theme = getTheme(currentTheme) || THEMES.retro;
+  theme.drawBlock(context, x, y, colorIndex, size, alpha);
 }
 
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  const theme = getTheme(currentTheme) || THEMES.retro;
+  ctx.strokeStyle = theme.gridColor;
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -395,18 +531,31 @@ function endGame() {
   overlay.classList.remove('hidden');
 }
 
+function showPauseMainView() {
+  pauseControlsView.classList.add('hidden');
+  pauseMainView.classList.remove('hidden');
+}
+
+function openPauseMenu() {
+  paused = true;
+  cancelAnimationFrame(animId);
+  showPauseMainView();
+  pauseOverlay.classList.remove('hidden');
+}
+
+function closePauseMenu() {
+  paused = false;
+  pauseOverlay.classList.add('hidden');
+  lastTime = performance.now();
+  loop(lastTime);
+}
+
 function togglePause() {
   if (gameOver) return;
-  paused = !paused;
-  if (!paused) {
-    lastTime = performance.now();
-    loop(lastTime);
+  if (paused) {
+    closePauseMenu();
   } else {
-    cancelAnimationFrame(animId);
-    overlayTitle.textContent = 'PAUSA';
-    overlayScore.textContent = '';
-    gameoverExtra.classList.add('hidden');
-    overlay.classList.remove('hidden');
+    openPauseMenu();
   }
 }
 
@@ -430,13 +579,14 @@ function init() {
   board = createBoard();
   score = 0;
   lines = 0;
-  level = 1;
+  activeStartingLevel = startingLevel;
+  level = activeStartingLevel;
   paused = false;
   gameOver = false;
   combo = 0;
   bestCombo = 0;
   started = true;
-  dropInterval = 1000;
+  dropInterval = Math.max(100, 1000 - (level - 1) * 90);
   dropAccum = 0;
   lastTime = performance.now();
   next = randomPiece();
@@ -445,13 +595,15 @@ function init() {
   overlay.classList.add('hidden');
   gameoverExtra.classList.add('hidden');
   nameEntry.classList.add('hidden');
+  pauseOverlay.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
 
 document.addEventListener('keydown', e => {
   if (!started) return;
-  if (e.code === 'KeyP') { togglePause(); return; }
+  if (e.target === themeSelect) return; // let the select handle its own keys
+  if (e.code === 'KeyP' || e.code === 'Escape') { togglePause(); return; }
   if (paused || gameOver) return;
   switch (e.code) {
     case 'ArrowLeft':
@@ -489,6 +641,34 @@ playBtn.addEventListener('click', () => {
   startOverlay.classList.add('hidden');
   init();
 });
+
+startingLevelSelect.addEventListener('change', e => {
+  startingLevel = parseInt(e.target.value, 10) || 1;
+});
+
+resumeBtn.addEventListener('click', closePauseMenu);
+
+pauseRestartBtn.addEventListener('click', init);
+
+viewControlsBtn.addEventListener('click', () => {
+  pauseMainView.classList.add('hidden');
+  pauseControlsView.classList.remove('hidden');
+});
+
+backToPauseBtn.addEventListener('click', showPauseMainView);
+
+startingLevelSelect.value = String(startingLevel);
+
+themeSelect.addEventListener('change', () => {
+  applyTheme(themeSelect.value);
+  // draw() is only called from the animation loop, which is stopped while
+  // paused/game over, so force a redraw here to show the change immediately.
+  draw();
+  drawNext();
+});
+
+applyTheme(loadTheme());
+themeSelect.value = currentTheme;
 
 started = false;
 refreshLeaderboardUI(null);
