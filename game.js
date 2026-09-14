@@ -50,7 +50,8 @@ const viewControlsBtn = document.getElementById('view-controls-btn');
 const backToPauseBtn = document.getElementById('back-to-pause-btn');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
-let startingLevel = 1;
+let startingLevel = 1; // pending selection for the *next* game (from the pause-menu select)
+let activeStartingLevel = 1; // starting level actually used by the game in progress, fixed at init()
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -116,7 +117,7 @@ function clearLines() {
   if (cleared) {
     lines += cleared;
     score += (LINE_SCORES[cleared] || 0) * level;
-    level = startingLevel + Math.floor(lines / 10);
+    level = activeStartingLevel + Math.floor(lines / 10);
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
     updateHUD();
   }
@@ -284,7 +285,8 @@ function init() {
   board = createBoard();
   score = 0;
   lines = 0;
-  level = startingLevel;
+  activeStartingLevel = startingLevel;
+  level = activeStartingLevel;
   paused = false;
   gameOver = false;
   dropInterval = Math.max(100, 1000 - (level - 1) * 90);
@@ -332,9 +334,7 @@ startingLevelSelect.addEventListener('change', e => {
 
 resumeBtn.addEventListener('click', closePauseMenu);
 
-pauseRestartBtn.addEventListener('click', () => {
-  init();
-});
+pauseRestartBtn.addEventListener('click', init);
 
 viewControlsBtn.addEventListener('click', () => {
   pauseMainView.classList.add('hidden');

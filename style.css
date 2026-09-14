@@ -169,6 +169,11 @@ kbd {
   min-width: 220px;
 }
 
+#pause-main-view.hidden,
+#pause-controls-view.hidden {
+  display: none;
+}
+
 .pause-field {
   display: flex;
   flex-direction: column;
@@ -218,19 +223,10 @@ kbd {
   background: #9bbdff;
 }
 
-.controls-list {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+#pause-controls-view .controls {
   margin-bottom: 20px;
 }
 
-.controls-list li {
-  font-size: 13px;
-  color: #ccc;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+#pause-controls-view .controls li {
   justify-content: center;
 }
